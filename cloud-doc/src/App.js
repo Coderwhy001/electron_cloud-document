@@ -1,7 +1,9 @@
 import React from 'react'
 import { faPlus, faFileImport } from '@fortawesome/free-solid-svg-icons'
 import './App.css'
+import SimpleMDE from "react-simplemde-editor"
 import 'bootstrap/dist/css/bootstrap.min.css'
+import "easymde/dist/easymde.min.css"
 import FileSearch from './components/FileSearch'
 import FileList from './components/FileList'
 import defaultFiles from './utils/defaultFiles'
@@ -46,6 +48,13 @@ function App() {
             activeId='1'
             unsaveIds={["1", "2"]}
             onCloseTab={(id) => {console.log('close', id)}}
+          />
+          <SimpleMDE
+            value={defaultFiles[1].body}
+            onChange={(value) => {console.log(value)}}
+            options={{
+              minHeight: '515px'
+            }}
           />
         </div>
       </div>
