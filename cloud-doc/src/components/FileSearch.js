@@ -87,6 +87,6 @@ FileSearch.propTypes = {
   onFileSearch: PropTypes.func.isRequired
 }
 FileSearch.defaultProps = {
-  title: '我的云文档'
+  title: 'my document'
 }
 export default FileSearch

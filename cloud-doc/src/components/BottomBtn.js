@@ -19,7 +19,7 @@ const BottomBtn = ({ text, colorClass, icon, onBtnClick }) => (
 BottomBtn.propTypes = {
   text: PropsType.string,
   colorClass: PropsType.string,
-  icon: PropsType.element.isRequired,
+  icon: PropsType.object.isRequired,
   onBtnClick: PropsType.func
 }
 BottomBtn.defaultProps = {
