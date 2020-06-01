@@ -1,27 +1,56 @@
 import React, { useState } from 'react'
-import { faPlus, faFileImport } from '@fortawesome/free-solid-svg-icons'
+import { faPlus, faFileImport, faSave } from '@fortawesome/free-solid-svg-icons'
 import './App.css'
 import uuidv4 from 'uuid/dist/v4'
-import {flattenArr, objToArr} from './utils/helper'
+import {objToArr} from './utils/helper'
+import fileHelper from './utils/fileHelper'
 import SimpleMDE from "react-simplemde-editor"
 import 'bootstrap/dist/css/bootstrap.min.css'
 import "easymde/dist/easymde.min.css"
 import FileSearch from './components/FileSearch'
 import FileList from './components/FileList'
-import defaultFiles from './utils/defaultFiles'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
+const { join } = window.require('path')
+const { remote } = window.require('electron')
+const Store = window.require('electron-store')
+const fileStore = new Store({'name': 'Files Data'})
+const saveFilesToStore = (files) => {
+  const filesStoreObj = objToArr(files).reduce((result, file) => {
+    const { id, path, title, createdAt } = file
+    result[id] = {
+      id,
+      path,
+      title,
+      createdAt
+    }
+    return result
+  }, {})
+  fileStore.set('files', filesStoreObj)
+}
 function App() {
-  const [ files, setFiles ] = useState(flattenArr(defaultFiles))
-  console.log(files)
+  const [ files, setFiles ] = useState(fileStore.get('files') || {}) 
   const [ activeFileId, setActiveFileId ] = useState('')
   const [ openedFileIDs, setOpenedFileIDs ] = useState([])
   const [ unsavedFileIDs, setUnsavedFileIDs ] = useState([])
   const [ searchedFiles, setSearchedFiles ] = useState([])
   const filesArr = objToArr(files)
-  console.log(filesArr)
+  const savedLocation = remote.app.getPath('documents')
+  const activeFile = files[activeFileId]
+  const openedFiles = openedFileIDs.map(openID => {
+    return files[openID]
+  })
+  const fileListArr = (searchedFiles.length > 0) ? searchedFiles : filesArr
+
   const fileClick = (fileID) => {
     setActiveFileId(fileID)
+    const currentFile = files[fileID]
+    if (!currentFile.isLoaded) {
+      fileHelper.readFile(currentFile.path).then(value => {
+        const newFile = { ...files[fileID], body: value, isLoaded: true }
+        setFiles({ ...files, [fileID]: newFile })
+      })
+    }
     if (openedFileIDs.indexOf(fileID) === -1) {
       setOpenedFileIDs([...openedFileIDs, fileID])
     } 
@@ -48,13 +77,30 @@ function App() {
     }
   }
   const deleteFile = (id) => {
-    delete files[id]
-    setFiles(files)
-    tabClose(id)
+    fileHelper.deleteFile(files[id].path).then(() => {
+      delete files[id]
+      setFiles(files)
+      saveFilesToStore(files)
+      tabClose(id)
+    })
   }
-  const updateFileName = (id, title) => {
-    const modifiedFile = {...files[id], title, isNew: false }
-    setFiles({ ...files, [id]: modifiedFile })
+  const updateFileName = (id, title, isNew) => {
+    const newPath = join(savedLocation, `${title}.md`)
+    const modifiedFile = {...files[id], title, isNew: false, path: newPath }
+    const newFiles = { ...files, [id]: modifiedFile }
+    if (isNew) {
+      fileHelper.writeFile(newPath, files[id].body).then(() => {
+        setFiles(newFiles)
+        saveFilesToStore(newFiles)
+      })
+    } else {
+      const oldPath = join(savedLocation, `${files[id].title}.md`)
+      fileHelper.renameFile(oldPath, newPath)
+      .then(() => {
+        setFiles(newFiles)
+        saveFilesToStore(newFiles)
+      })
+    }
   }
   const fileSearch = (keyword) => {
     const newFiles = filesArr.filter(file => file.title.includes(keyword))
@@ -72,11 +118,13 @@ function App() {
     }
     setFiles({ ...files, [newID]: newFile})
   }
-  const activeFile = files[activeFileId]
-  const openedFiles = openedFileIDs.map(openID => {
-    return files[openID]
-  })
-  const fileListArr = (searchedFiles.length > 0) ? searchedFiles : filesArr
+  const saveCurrentFile = () => {
+    fileHelper.writeFile(join(savedLocation, `${activeFile.title}.md`),
+      activeFile.body
+    ).then(() => {
+      setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFileId))
+    })
+  }
   return (
     <div className="App container-fluid px-0">
       <div className="row no-gutters">
@@ -131,6 +179,12 @@ function App() {
               options={{
                 minHeight: '515px'
               }}
+            />
+            <BottomBtn
+              text="保存"
+              colorClass="btn-success"
+              icon={faSave}
+              onBtnClick={saveCurrentFile}
             />
           </>
           }
