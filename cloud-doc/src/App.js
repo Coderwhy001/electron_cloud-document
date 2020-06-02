@@ -46,9 +46,16 @@ function App() {
     setActiveFileId(fileID)
     const currentFile = files[fileID]
     if (!currentFile.isLoaded) {
-      fileHelper.readFile(currentFile.path).then(value => {
+      fileHelper.readFile(currentFile.path)
+      .then(value => {
         const newFile = { ...files[fileID], body: value, isLoaded: true }
         setFiles({ ...files, [fileID]: newFile })
+      })
+      .catch((err) => {
+        alert(err)
+        const { [fileID]: value, ...afterDelete } = files
+        setFiles(afterDelete)
+        saveFilesToStore(afterDelete)
       })
     }
     if (openedFileIDs.indexOf(fileID) === -1) {
@@ -77,12 +84,17 @@ function App() {
     }
   }
   const deleteFile = (id) => {
-    fileHelper.deleteFile(files[id].path).then(() => {
-      delete files[id]
-      setFiles(files)
-      saveFilesToStore(files)
+    if (files[id].isNew) {
+      const { [id]: value, ...afterDelete } = files
+      setFiles(afterDelete)
+    } else {
+      fileHelper.deleteFile(files[id].path).then(() => {
+      const { [id]: value, ...afterDelete } = files
+      setFiles(afterDelete)
+      saveFilesToStore(afterDelete)
       tabClose(id)
-    })
+      })
+    }
   }
   const updateFileName = (id, title, isNew) => {
     const newPath = join(savedLocation, `${title}.md`)
@@ -109,7 +121,9 @@ function App() {
 
   const createNewFile = () => {
     const newID = uuidv4()
-    const newFile = {
+    let len = filesArr.length
+    if (len === 0) {
+      const newFile = {
         id: newID,
         title: '',
         body: '## 请输入 Mrakdown',
@@ -117,6 +131,16 @@ function App() {
         isNew: true
     }
     setFiles({ ...files, [newID]: newFile})
+    } else if (!filesArr[len-1].isNew) {
+      const newFile = {
+        id: newID,
+        title: '',
+        body: '## 请输入 Mrakdown',
+        createdAt: new Date().getTime(),
+        isNew: true
+    }
+      setFiles({ ...files, [newID]: newFile})
+    }
   }
   const saveCurrentFile = () => {
     fileHelper.writeFile(join(savedLocation, `${activeFile.title}.md`),

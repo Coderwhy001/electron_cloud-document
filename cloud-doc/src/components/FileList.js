@@ -10,7 +10,7 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
   const enterPressed = useKeyPress(13)
   const escPressed = useKeyPress(27)
   let node = useRef(null)
-
+  let newArr = []
   const closeSearch = (editItem) => {
     setEditStatus(false)
     setValue('')
@@ -21,10 +21,14 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
   useEffect(() => {
     const editItem = files.find(file => file.id === editStatus)
     if (enterPressed && editStatus && value.trim() !== '') {
-      console.log(editItem)
-      onSaveEdit(editItem.id, value, editItem.isNew)
-      setEditStatus(false)
-      setValue('')
+      files.map((file) => {
+        newArr.push(file.title)
+      })
+      if (newArr.indexOf(value) === -1) {
+        onSaveEdit(editItem.id, value, editItem.isNew)
+        setEditStatus(false)
+        setValue('')
+      }
     }
     if (escPressed && editStatus) {
       closeSearch(editItem)
