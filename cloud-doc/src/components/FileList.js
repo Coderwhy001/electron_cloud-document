@@ -5,7 +5,7 @@ import { faMarkdown } from '@fortawesome/free-brands-svg-icons'
 import PropTypes from 'prop-types'
 import useKeyPress from '../hooks/useKeyPress'
 import useContextMenu from '../hooks/useContextMenu'
-
+import { getPartentNode } from '../utils/helper'
 const { remote } = window.require('electron')
 const { Menu, MenuItem } = remote
 const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
@@ -26,22 +26,32 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
     {
       label: '打开',
       click: () => {
-        console.log('clicking', clickedItem.current)
+        const parentElement = getPartentNode(clickedItem.current, 'file-item')
+        if (parentElement) {
+          onFileClick(parentElement.dataset.id)
+        }
       }
     },
     {
       label: '重命名',
       click: () => {
-        console.log('renameing')
+        const parentElement = getPartentNode(clickedItem.current, 'file-item')
+        if (parentElement) {
+          setEditStatus(parentElement.dataset.id)
+          setValue(parentElement.dataset.title)
+        }
       }
     },
     {
       label: '删除',
       click: () => {
-        console.log('deleting')
+        const parentElement = getPartentNode(clickedItem.current, 'file-item')
+        if (parentElement) {
+          onFileDelete(parentElement.dataset.id)
+        }
       }
     }
-  ], '.file-list')
+  ], '.file-list', [files])
   useEffect(() => {
     const editItem = files.find(file => file.id === editStatus)
     if (enterPressed && editStatus && value.trim() !== '') {
@@ -78,6 +88,8 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
           <li
             className="list-group-item bg-light row d-flex align-items-center file-item mx-0"
             key={file.id}
+            data-id={file.id}
+            data-title={file.title}
           >
             {(file.id !== editStatus && !file.isNew) &&
               <>
@@ -88,33 +100,11 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
                   />
                 </span>
                 <span
-                  className="col-6 c-link"
+                  className="col-10 c-link"
                   onClick={() => { onFileClick(file.id) }}
                 >
                   {file.title}
                 </span>
-                <button
-                  type="button"
-                  className="icon-button col-2"
-                  onClick={() => { setEditStatus(file.id); setValue(file.title) }}
-                >
-                  <FontAwesomeIcon
-                    title="编辑"
-                    size="lg"
-                    icon={faEdit}
-                  />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button col-2"
-                  onClick={() => { onFileDelete(file.id) }}
-                >
-                  <FontAwesomeIcon
-                    title="删除"
-                    size="lg"
-                    icon={faTrash}
-                  />
-                </button>
               </>
             }
             {((file.id === editStatus) || file.isNew) &&
