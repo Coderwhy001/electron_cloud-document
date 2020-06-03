@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { faPlus, faFileImport, faSave } from '@fortawesome/free-solid-svg-icons'
 import './App.css'
 import uuidv4 from 'uuid/dist/v4'
-import {objToArr} from './utils/helper'
+import {objToArr, flattenArr} from './utils/helper'
 import fileHelper from './utils/fileHelper'
 import SimpleMDE from "react-simplemde-editor"
 import 'bootstrap/dist/css/bootstrap.min.css'
@@ -11,7 +11,7 @@ import FileSearch from './components/FileSearch'
 import FileList from './components/FileList'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
-const { join } = window.require('path')
+const { join, basename, extname, dirname } = window.require('path')
 const { remote } = window.require('electron')
 const Store = window.require('electron-store')
 const fileStore = new Store({'name': 'Files Data'})
@@ -97,16 +97,18 @@ function App() {
     }
   }
   const updateFileName = (id, title, isNew) => {
-    const newPath = join(savedLocation, `${title}.md`)
+    const newPath = isNew ? join(savedLocation, `${title}.md`) : join(dirname(files[id].path), `${title}.md`)
     const modifiedFile = {...files[id], title, isNew: false, path: newPath }
     const newFiles = { ...files, [id]: modifiedFile }
     if (isNew) {
       fileHelper.writeFile(newPath, files[id].body).then(() => {
         setFiles(newFiles)
         saveFilesToStore(newFiles)
+        setOpenedFileIDs([...openedFileIDs, id])
+        setActiveFileId(id)
       })
     } else {
-      const oldPath = join(savedLocation, `${files[id].title}.md`)
+      const oldPath = files[id].path
       fileHelper.renameFile(oldPath, newPath)
       .then(() => {
         setFiles(newFiles)
@@ -143,7 +145,7 @@ function App() {
     }
   }
   const saveCurrentFile = () => {
-    fileHelper.writeFile(join(savedLocation, `${activeFile.title}.md`),
+    fileHelper.writeFile(activeFile.path,
       activeFile.body
     ).then(() => {
       setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFileId))
@@ -157,7 +159,34 @@ function App() {
         {name: 'Markdown files', extensions: ['md']}
       ]
     }, (paths) => {
-      console.log(paths)
+      if (Array.isArray(paths)) {
+        const filteredPath = paths.filter(path => {
+          const alreadyAdded = Object.values(files).find(file => {
+            return file.path === path
+          })
+          return !alreadyAdded
+        })
+        const importFilesArr = filteredPath.map(path => {
+          return {
+            id: uuidv4(),
+            title: basename(path, extname(path)),
+            createdAt: new Date().getTime(),
+            path,
+          }
+        })
+        console.log(importFilesArr)
+        const newFiles = { ...files, ...flattenArr(importFilesArr)}
+        console.log(newFiles)
+        setFiles(newFiles)
+        saveFilesToStore(newFiles)
+        if (importFilesArr.length > 0) {
+          remote.dialog.showMessageBox({
+            type: 'info',
+            title: `成功导入了${importFilesArr.length}个文件`,
+            message: `成功导入了${importFilesArr.length}个文件`
+          })
+        }
+      }
     })
   }
   return (
