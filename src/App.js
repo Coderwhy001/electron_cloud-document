@@ -16,6 +16,8 @@ const { join, basename, extname, dirname } = window.require('path')
 const { remote, ipcRenderer } = window.require('electron')
 const Store = window.require('electron-store')
 const fileStore = new Store({'name': 'Files Data'})
+const settingsStore = new Store({name: 'Settings'})
+
 const saveFilesToStore = (files) => {
   const filesStoreObj = objToArr(files).reduce((result, file) => {
     const { id, path, title, createdAt } = file
@@ -36,7 +38,7 @@ function App() {
   const [ unsavedFileIDs, setUnsavedFileIDs ] = useState([])
   const [ searchedFiles, setSearchedFiles ] = useState([])
   const filesArr = objToArr(files)
-  const savedLocation = remote.app.getPath('documents')
+  const savedLocation = settingsStore.get('savedFileLocation') || remote.app.getPath('documents')
   const activeFile = files[activeFileId]
   const openedFiles = openedFileIDs.map(openID => {
     return files[openID]
@@ -46,7 +48,6 @@ function App() {
   const fileClick = (fileID) => {
     setActiveFileId(fileID)
     const currentFile = files[fileID]
-    console.log(currentFile)
     if (!currentFile.isLoaded) {
       fileHelper.readFile(currentFile.path)
       .then(value => {
