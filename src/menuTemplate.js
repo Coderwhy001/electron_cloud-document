@@ -70,7 +70,7 @@ let template = [
   submenu: [
     {
       label: '刷新当前页面',
-      accelerator: 'CmdOrCtrl+R',
+      accelerator: 'F5',
       click: (item, focusedWindow) => {
         if (focusedWindow)
           focusedWindow.reload();
