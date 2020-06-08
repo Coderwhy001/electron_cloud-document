@@ -17,6 +17,7 @@ const { remote, ipcRenderer } = window.require('electron')
 const Store = window.require('electron-store')
 const fileStore = new Store({'name': 'Files Data'})
 const settingsStore = new Store({name: 'Settings'})
+const getAutoSync = () => ['accessKey', 'secretKey', 'bucketName', 'enableAutoSync'].every(key => !!settingsStore.get(key))
 
 const saveFilesToStore = (files) => {
   const filesStoreObj = objToArr(files).reduce((result, file) => {
@@ -150,10 +151,14 @@ function App() {
     }
   }
   const saveCurrentFile = () => {
+    const { path, body, title } = activeFile
     if (activeFileId) {
-      fileHelper.writeFile(activeFile.path,activeFile.body)
+      fileHelper.writeFile(path, body)
       .then(() => {
         setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFileId))
+        if (getAutoSync()) {
+          ipcRenderer.send('upload-file', {key: `${title}.md`, path})
+        }
       })
     }
     
