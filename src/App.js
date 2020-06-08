@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { faPlus, faFileImport, faSave } from '@fortawesome/free-solid-svg-icons'
 import './App.css'
 import uuidv4 from 'uuid/dist/v4'
-import {objToArr, flattenArr} from './utils/helper'
+import {objToArr, flattenArr, timestampToString} from './utils/helper'
 import fileHelper from './utils/fileHelper'
 import SimpleMDE from "react-simplemde-editor"
 import 'bootstrap/dist/css/bootstrap.min.css'
@@ -11,6 +11,7 @@ import FileSearch from './components/FileSearch'
 import FileList from './components/FileList'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
+import Loader from './components/Loader'
 import useIpcRenderer from './hooks/useIpcRender'
 const { join, basename, extname, dirname } = window.require('path')
 const { remote, ipcRenderer } = window.require('electron')
@@ -21,12 +22,14 @@ const getAutoSync = () => ['accessKey', 'secretKey', 'bucketName', 'enableAutoSy
 
 const saveFilesToStore = (files) => {
   const filesStoreObj = objToArr(files).reduce((result, file) => {
-    const { id, path, title, createdAt } = file
+    const { id, path, title, createdAt, isSynced, updatedAt } = file
     result[id] = {
       id,
       path,
       title,
-      createdAt
+      createdAt,
+      isSynced,
+      updatedAt
     }
     return result
   }, {})
@@ -38,6 +41,7 @@ function App() {
   const [ openedFileIDs, setOpenedFileIDs ] = useState([])
   const [ unsavedFileIDs, setUnsavedFileIDs ] = useState([])
   const [ searchedFiles, setSearchedFiles ] = useState([])
+  const [ isLoaded, setLoading ] = useState(false)
   const filesArr = objToArr(files)
   const savedLocation = settingsStore.get('savedFileLocation') || remote.app.getPath('documents')
   const activeFile = files[activeFileId]
@@ -49,18 +53,23 @@ function App() {
   const fileClick = (fileID) => {
     setActiveFileId(fileID)
     const currentFile = files[fileID]
-    if (!currentFile.isLoaded) {
-      fileHelper.readFile(currentFile.path)
-      .then(value => {
-        const newFile = { ...files[fileID], body: value, isLoaded: true }
-        setFiles({ ...files, [fileID]: newFile })
-      })
-      .catch((err) => {
-        alert(err)
-        const { [fileID]: value, ...afterDelete } = files
-        setFiles(afterDelete)
-        saveFilesToStore(afterDelete)
-      })
+    const { id, title, path, isLoaded } = currentFile
+    if (!isLoaded) {
+      if (getAutoSync()) {
+        ipcRenderer.send('download-file', { key: `${title}.md`, path, id})
+      } else {
+        fileHelper.readFile(currentFile.path)
+        .then(value => {
+          const newFile = { ...files[fileID], body: value, isLoaded: true }
+          setFiles({ ...files, [fileID]: newFile })
+        })
+        .catch((err) => {
+          alert(err)
+          const { [fileID]: value, ...afterDelete } = files
+          setFiles(afterDelete)
+          saveFilesToStore(afterDelete)
+        })
+      }
     }
     if (openedFileIDs.indexOf(fileID) === -1) {
       setOpenedFileIDs([...openedFileIDs, fileID])
@@ -201,13 +210,41 @@ function App() {
       }
     })
   }
+  const activeFileUploaded = () => { 
+    const { id } = activeFile
+    const modifiedFile = { ...files[id], isSynced: true, updatedAt: new Date().getTime()}
+    const newFiles = { ...files, [id]: modifiedFile }
+    setFiles(newFiles)
+    saveFilesToStore(newFiles)
+  }
+  const activeFileDownloaded = (event, message) => {
+    const currentFile = files[message.id]
+    const { id, path } = currentFile
+    fileHelper.readFile(path).then(value => {
+      let newFile
+      if (message.status === 'download-success') {
+        newFile = { ...files[id], body: value, isLoaded: true, isSynced: true, updatedAt: new Date().getTime()}
+      } else {
+        newFile = { ...files[id], body: value, isLoaded: true }
+      }
+      const newFiles = { ...files, [id]: newFile }
+      setFiles(newFiles)
+      saveFilesToStore(newFiles)
+    })
+  }
   useIpcRenderer({
     'create-new-file': createNewFile,
     'import-file': importFiles,
-    'save-edit-file': saveCurrentFile
+    'save-edit-file': saveCurrentFile,
+    'active-file-uploaded': activeFileUploaded,
+    'file-downloaded': activeFileDownloaded,
+    'loading-status': (message, status) => {setLoading(status)}
   })
   return (
     <div className="App container-fluid px-0">
+      {
+        isLoaded && <Loader />
+      }
       <div className="row no-gutters">
         <div className="col-3 bg-light left-panel">
           <FileSearch 
@@ -262,6 +299,13 @@ function App() {
                 minHeight: '515px'
               }}
             />
+            {
+              isLoaded && <Loader />
+            }
+            {
+              activeFile.isSynced &&
+            <span className="sync-status">已同步， 上次同步时间{timestampToString(activeFile.updatedAt)}</span>
+            }
           </>
           }
         </div>

@@ -61,13 +61,18 @@ class QiniuManager {
       })
     }).then(response => {
       const writer = fs.createWriteStream(downloadPath)
-      response.data.pipe(writer) 
+      response.data.pipe(writer)
       return new Promise((resolve, reject) => {
         writer.on('finish', resolve)
         writer.on('error', reject)
       })
     }).catch(err => {
       return Promise.reject({ err: err.response })
+    })
+  }
+  getStat(key) {
+    return new Promise((resolve, reject) => {
+      this.bucketManager.stat(this.bucket, key, this._handleCallback(resolve, reject))
     })
   }
   _handleCallback(resolve, reject) {
